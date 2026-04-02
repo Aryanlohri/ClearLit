@@ -1,4 +1,4 @@
-# Accessibility Hub - Google Chrome Extension
+# ClearLit-  Extension
 
 A unified, powerful, and clean accessibility extension for Google Chrome designed to provide a premium and seamless reading experience. Accessibility Hub transforms cluttered web pages into a focused, cinematic reading interface, combined with instantaneous Text-to-Speech (TTS) and fine-grained text control.
 
