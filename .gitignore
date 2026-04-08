@@ -1,0 +1,13 @@
+# Credentials
+credentials.json
+
+# Node modules
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Dev/Environment
+.env
+.gemini/
