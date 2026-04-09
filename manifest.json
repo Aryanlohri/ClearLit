@@ -1,41 +1,40 @@
 {
   "manifest_version": 3,
-  "name": "CLEARLIT",
-  "version": "1.0.0",
-  "description": "Distraction-free reading with AI summaries injected directly into any article.",
-
+  "name": "ClearLit",
+  "version": "2.1.0",
+  "description": "AI-powered reading assistant with smart summaries, focus tools, and reading enhancements.",
   "permissions": [
     "activeTab",
+    "scripting",
     "storage",
-    "scripting"
+    "alarms",
+    "notifications"
   ],
-
   "host_permissions": [
-    "*://*/*",
-    "https://api.anthropic.com/*"
+    "https://*.googleapis.com/*",
+    "https://oauth2.googleapis.com/*",
+    "https://api.anthropic.com/*",
+    "https://api.notion.com/*",
+    "<all_urls>"
   ],
-
   "background": {
     "service_worker": "background.js"
   },
-
   "action": {
     "default_popup": "popup.html",
-    "default_title": "CLEARLIT",
     "default_icon": {
-      "16":  "icons/icon16.png",
-      "48":  "icons/icon48.png",
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
   },
-
-  "options_page": "options.html",
-
-  "icons": {
-    "16":  "icons/icon16.png",
-    "48":  "icons/icon48.png",
-    "128": "icons/icon128.png"
-  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "web_accessible_resources": [
     {
       "resources": ["credentials.json"],
