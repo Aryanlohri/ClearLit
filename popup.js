@@ -1,146 +1,317 @@
-// popup.js — CLEARLIT
+// popup.js — CLEARLIT v2.1
 
+"use strict";
+
+// ─── ELEMENTS ────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const statusDot    = $("status-dot");
+const btnGenerate  = $("btn-generate");
+const btnRemove    = $("btn-remove");
+const btnLabel     = $("btn-label");
+const summaryCard  = $("summary-card");
+const summaryStatus = $("summary-status");
+const summaryAiLabel = $("summary-ai-label");
+
+// Pomodoro
+const pomoDisplay  = $("pomo-display");
+const pomoStart    = $("pomo-start");
+const pomoReset    = $("pomo-reset");
+
+// Settings
+const quickSettings = $("quick-settings");
+const settingsPage  = $("settings-page");
+const settingsBack  = $("settings-back");
+const settingsSave  = $("settings-save");
+const settingsStatus = $("settings-status");
+const popupMain     = document.querySelector(".popup");
+
+// ─── STATE ───────────────────────────────────────────────────
 let selectedMode = "summary";
+let summaryVisible = false;
 
-const dot        = document.getElementById("status-dot");
-const card       = document.getElementById("summary-card");
-const cardText   = document.getElementById("summary-status");
-const btnGen     = document.getElementById("btn-generate");
-const btnLabel   = document.getElementById("btn-label");
-const btnIcon    = document.getElementById("btn-icon");
-const btnRemove  = document.getElementById("btn-remove");
+// Pomodoro state
+let pomoTimer = null;
+let pomoSecondsLeft = 25 * 60;
+let pomoRunning = false;
+let pomoBreak = false;
+let pomoDefaultMins = 25;
 
-// ── MODE PILLS ────────────────────────────────────────────────────────────
-document.querySelectorAll(".pill").forEach((pill) => {
-  pill.addEventListener("click", () => {
-    document.querySelectorAll(".pill").forEach((p) => p.classList.remove("active"));
-    pill.classList.add("active");
-    selectedMode = pill.dataset.mode;
-  });
+// ─── INIT ────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", async () => {
+  await detectAndSetAuthLabel();
+  await loadSettings();
+  setupModePills();
+  setupToggles();
+  setupPomodoro();
+  setupSettingsPage();
+  setupGenerateButton();
+  setupFontQuickBtn();
 });
 
-// ── TOGGLE PERSISTENCE ───────────────────────────────────────────────────
-const toggleIds = ["toggle-cinematic", "toggle-bionic", "toggle-tts"];
-
-// Load saved toggle states
-chrome.storage.sync.get(toggleIds, (vals) => {
-  toggleIds.forEach((id) => {
-    if (vals[id]) document.getElementById(id).checked = true;
-  });
-});
-
-toggleIds.forEach((id) => {
-  document.getElementById(id).addEventListener("change", (e) => {
-    chrome.storage.sync.set({ [id]: e.target.checked });
-
-    // Send toggle state to content script
-    sendToActiveTab({ action: "toggleFeature", feature: id, enabled: e.target.checked });
-  });
-});
-
-// ── GENERATE BUTTON ───────────────────────────────────────────────────────
-btnGen.addEventListener("click", async () => {
-  setLoading(true);
-  dot.className = "header-dot loading";
-  showSkeleton();
-
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-  // Inject content script fresh each time
+// ─── AUTH MODE LABEL ─────────────────────────────────────────
+async function detectAndSetAuthLabel() {
   try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
-  } catch (_) {}
-
-  chrome.tabs.sendMessage(
-    tab.id,
-    { action: "triggerSummary", mode: selectedMode },
-    (response) => {
-      if (chrome.runtime.lastError || !response) {
-        showError("Could not connect to page. Try refreshing.");
+    const url = chrome.runtime.getURL("credentials.json");
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.client_email && data.private_key) {
+        summaryAiLabel.textContent = "GEMINI · GOOGLE VERTEX AI";
         return;
       }
-      // Wait for the background to finish — listen for completion
     }
-  );
+  } catch (_) {}
 
-  // Listen for result from background (relayed via content)
-  chrome.runtime.onMessage.addListener(function handler(msg) {
-    if (msg.action === "summaryDone") {
-      chrome.runtime.onMessage.removeListener(handler);
-      setLoading(false);
-      dot.className = "header-dot active";
-      showSuccess(msg.mode);
-      btnRemove.classList.remove("hidden");
-      setTimeout(() => window.close(), 1400);
-    }
-    if (msg.action === "summaryError") {
-      chrome.runtime.onMessage.removeListener(handler);
-      showError(msg.error || "Unknown error");
+  // Check for stored Anthropic key
+  const { apiKey } = await chrome.storage.sync.get("apiKey");
+  if (apiKey) {
+    summaryAiLabel.textContent = "CLAUDE · ANTHROPIC";
+  } else {
+    summaryAiLabel.textContent = "NO KEY CONFIGURED";
+    summaryStatus.textContent = "Add an API key in Settings →";
+  }
+}
+
+// ─── LOAD SETTINGS ───────────────────────────────────────────
+async function loadSettings() {
+  const settings = await new Promise(res => chrome.storage.sync.get(null, res));
+
+  if (settings.apiKey)     $("input-api-key").value   = settings.apiKey;
+  if (settings.notionKey)  $("input-notion-key").value = settings.notionKey;
+  if (settings.notionDbId) $("input-notion-db").value  = settings.notionDbId;
+
+  // Restore toggle states
+  if (settings.focusHighlight) $("toggle-focus").checked = true;
+  if (settings.bionic)         $("toggle-bionic").checked = true;
+  if (settings.cinematic)      $("toggle-cinematic").checked = true;
+}
+
+// ─── MODE PILLS ──────────────────────────────────────────────
+function setupModePills() {
+  document.querySelectorAll(".pill[data-mode]").forEach(pill => {
+    pill.addEventListener("click", () => {
+      document.querySelectorAll(".pill[data-mode]").forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+      selectedMode = pill.dataset.mode;
+    });
+  });
+}
+
+// ─── TOGGLES ─────────────────────────────────────────────────
+function setupToggles() {
+  // Focus highlight
+  $("toggle-focus").addEventListener("change", (e) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+      chrome.tabs.sendMessage(tabs[0].id, { action: "toggleFocusHighlight" });
+    });
+    chrome.storage.sync.set({ focusHighlight: e.target.checked });
+  });
+
+  // TTS (handled in content script via generate button flow)
+  $("toggle-tts").addEventListener("change", (e) => {
+    if (e.target.checked) {
+      chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+        chrome.tabs.sendMessage(tabs[0].id, { action: "toggleTTS" });
+      });
     }
   });
-});
 
-// ── REMOVE BUTTON ─────────────────────────────────────────────────────────
-btnRemove.addEventListener("click", async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  chrome.tabs.sendMessage(tab.id, { action: "removeSummary" });
-  btnRemove.classList.add("hidden");
-  dot.className = "header-dot";
-  cardText.textContent = "Waiting for page content";
-  cardText.classList.remove("loaded");
-  card.querySelector(".summary-card-tag").textContent = "CLAUDE · ANTHROPIC";
-});
+  // Cinematic / Bionic — save state
+  $("toggle-cinematic").addEventListener("change", (e) => {
+    chrome.storage.sync.set({ cinematic: e.target.checked });
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+      chrome.tabs.sendMessage(tabs[0].id, { action: "toggleCinematic", enabled: e.target.checked });
+    });
+  });
 
-// ── QUICK BUTTONS ─────────────────────────────────────────────────────────
-document.getElementById("quick-focus").addEventListener("click", () => {
-  sendToActiveTab({ action: "toggleFeature", feature: "focus-tunnel", enabled: true });
-});
-
-document.getElementById("quick-font").addEventListener("click", () => {
-  sendToActiveTab({ action: "toggleFeature", feature: "font-size", enabled: true });
-});
-
-document.getElementById("quick-settings").addEventListener("click", () => {
-  chrome.runtime.openOptionsPage();
-});
-
-// ── HELPERS ───────────────────────────────────────────────────────────────
-async function sendToActiveTab(msg) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
-  } catch (_) {}
-  chrome.tabs.sendMessage(tab.id, msg);
+  $("toggle-bionic").addEventListener("change", (e) => {
+    chrome.storage.sync.set({ bionic: e.target.checked });
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+      chrome.tabs.sendMessage(tabs[0].id, { action: "toggleBionic", enabled: e.target.checked });
+    });
+  });
 }
 
-function setLoading(on) {
-  btnGen.disabled = on;
-  btnLabel.textContent = on ? "Generating…" : "Generate smart summary";
-  btnIcon.style.opacity = on ? "0" : "1";
+// ─── POMODORO TIMER ──────────────────────────────────────────
+function setupPomodoro() {
+  // Mode pills
+  document.querySelectorAll(".pomo-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      document.querySelectorAll(".pomo-pill").forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+      pomoDefaultMins = parseInt(pill.dataset.mins);
+      resetPomodoro();
+    });
+  });
+
+  pomoStart.addEventListener("click", () => {
+    if (pomoRunning) {
+      pausePomodoro();
+    } else {
+      startPomodoro();
+    }
+  });
+
+  pomoReset.addEventListener("click", resetPomodoro);
 }
 
-function showSkeleton() {
-  card.innerHTML = `
-    <div class="summary-card-tag">CLAUDE · ANTHROPIC</div>
-    <div class="skeleton-line"></div>
-    <div class="skeleton-line"></div>
-    <div class="skeleton-line"></div>
-  `;
+function formatTime(secs) {
+  const m = Math.floor(secs / 60).toString().padStart(2, "0");
+  const s = (secs % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
 }
 
-function showSuccess(mode) {
-  const labels = { summary: "Summary injected", keypoints: "Key points injected", simplify: "Simplified text injected" };
-  card.innerHTML = `
-    <div class="summary-card-tag">CLAUDE · ANTHROPIC</div>
-    <div class="summary-card-text loaded">✓ ${labels[mode] || "Summary injected"} at the top of the article.</div>
-  `;
+function startPomodoro() {
+  pomoRunning = true;
+  pomoStart.textContent = "Pause";
+  pomoStart.classList.add("active-run");
+  pomoDisplay.className = pomoBreak ? "pomo-display break" : "pomo-display running";
+
+  pomoTimer = setInterval(() => {
+    pomoSecondsLeft--;
+    pomoDisplay.textContent = formatTime(pomoSecondsLeft);
+
+    if (pomoSecondsLeft <= 0) {
+      clearInterval(pomoTimer);
+      pomoRunning = false;
+      pomoDisplay.className = "pomo-display done";
+      pomoStart.textContent = "Start";
+      pomoStart.classList.remove("active-run");
+
+      // Notify background to fire system notification
+      chrome.runtime.sendMessage({
+        action: "pomodoroComplete",
+        isBreak: pomoBreak
+      });
+
+      // Switch mode
+      pomoBreak = !pomoBreak;
+      pomoSecondsLeft = pomoBreak ? 5 * 60 : pomoDefaultMins * 60;
+      pomoDisplay.textContent = formatTime(pomoSecondsLeft);
+    }
+  }, 1000);
+}
+
+function pausePomodoro() {
+  clearInterval(pomoTimer);
+  pomoRunning = false;
+  pomoStart.textContent = "Resume";
+  pomoStart.classList.remove("active-run");
+  pomoDisplay.className = "pomo-display";
+}
+
+function resetPomodoro() {
+  clearInterval(pomoTimer);
+  pomoRunning = false;
+  pomoBreak = false;
+  pomoSecondsLeft = pomoDefaultMins * 60;
+  pomoDisplay.textContent = formatTime(pomoSecondsLeft);
+  pomoDisplay.className = "pomo-display";
+  pomoStart.textContent = "Start";
+  pomoStart.classList.remove("active-run");
+}
+
+// ─── SETTINGS PAGE ───────────────────────────────────────────
+function setupSettingsPage() {
+  quickSettings.addEventListener("click", () => {
+    popupMain.classList.add("hidden");
+    settingsPage.classList.remove("hidden");
+  });
+
+  settingsBack.addEventListener("click", () => {
+    settingsPage.classList.add("hidden");
+    popupMain.classList.remove("hidden");
+  });
+
+  settingsSave.addEventListener("click", async () => {
+    const settings = {
+      apiKey:     $("input-api-key").value.trim(),
+      notionKey:  $("input-notion-key").value.trim(),
+      notionDbId: $("input-notion-db").value.trim()
+    };
+
+    await new Promise(res => chrome.storage.sync.set(settings, res));
+
+    settingsStatus.classList.remove("hidden");
+    settingsStatus.textContent = "Saved!";
+    setTimeout(() => settingsStatus.classList.add("hidden"), 2000);
+
+    // Re-detect auth mode label
+    await detectAndSetAuthLabel();
+  });
+}
+
+// ─── GENERATE BUTTON ─────────────────────────────────────────
+function setupGenerateButton() {
+  btnGenerate.addEventListener("click", async () => {
+    if (btnGenerate.disabled) return;
+
+    btnGenerate.disabled = true;
+    btnLabel.textContent = "Analyzing…";
+    statusDot.className = "header-dot loading";
+
+    // Show skeleton
+    summaryCard.innerHTML = `
+      <div class="summary-card-tag" id="summary-ai-label">${summaryAiLabel.textContent}</div>
+      <div class="skeleton-line" style="width:90%"></div>
+      <div class="skeleton-line" style="width:80%"></div>
+      <div class="skeleton-line" style="width:55%"></div>`;
+
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+      chrome.tabs.sendMessage(
+        tabs[0].id,
+        { action: "triggerSummary", mode: selectedMode },
+        (res) => {
+          if (chrome.runtime.lastError) {
+            showError("Cannot run on this page.");
+            return;
+          }
+
+          // The content script handles the heavy lifting;
+          // we just need to update popup state
+          statusDot.className = "header-dot active";
+          btnGenerate.disabled = false;
+          btnLabel.textContent = "Regenerate";
+          summaryVisible = true;
+          btnRemove.classList.remove("hidden");
+
+          summaryCard.innerHTML = `
+            <div class="summary-card-tag">${summaryAiLabel.textContent}</div>
+            <div class="summary-card-text loaded">Summary generated — see panel on page</div>`;
+        }
+      );
+    });
+  });
+
+  btnRemove.addEventListener("click", () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+      chrome.tabs.sendMessage(tabs[0].id, { action: "removeSummary" });
+    });
+    btnRemove.classList.add("hidden");
+    summaryVisible = false;
+    btnLabel.textContent = "Generate smart summary";
+    statusDot.className = "header-dot";
+    summaryCard.innerHTML = `
+      <div class="summary-card-tag">${summaryAiLabel.textContent}</div>
+      <div class="summary-card-text">Waiting for page content</div>`;
+  });
 }
 
 function showError(msg) {
-  setLoading(false);
-  dot.className = "header-dot";
-  card.innerHTML = `
-    <div class="summary-card-tag" style="color:#ef4444">ERROR</div>
-    <div class="summary-card-text" style="color:#7f1d1d">${msg}</div>
-  `;
+  btnGenerate.disabled = false;
+  btnLabel.textContent = "Generate smart summary";
+  statusDot.className = "header-dot";
+  summaryCard.innerHTML = `
+    <div class="summary-card-tag">ERROR</div>
+    <div class="summary-card-text" style="color:#c0392b">${msg}</div>`;
+}
+
+// ─── FONT QUICK BTN ──────────────────────────────────────────
+function setupFontQuickBtn() {
+  $("quick-font").addEventListener("click", () => {
+    // Triggers the font panel in the content script panel
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+      chrome.tabs.sendMessage(tabs[0].id, { action: "toggleFontPanel" });
+    });
+  });
 }
