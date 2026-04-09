@@ -4,196 +4,184 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CLEARLIT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <div class="popup">
 
-    <!-- Header -->
-    <div class="header">
-      <div class="header-logo">
-        <span class="logo-clear">CLEAR</span><span class="logo-lit">LIT</span>
+  <!-- MAIN POPUP -->
+  <div class="popup" id="popup-main">
+
+    <!-- NAV -->
+    <nav class="nav">
+      <div class="nav-logo">
+        <span class="logo-top">CL</span>
+        <span class="logo-bot">EAR<br>LIT</span>
       </div>
-      <div class="header-dot" id="status-dot"></div>
-    </div>
-
-    <div class="divider"></div>
-
-    <!-- READING SECTION -->
-    <div class="section-label">READING</div>
-
-    <div class="feature-row" id="row-cinematic">
-      <div class="feature-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg>
+      <div class="nav-links">
+        <button class="nav-link active" id="nav-reading">READING</button>
+        <button class="nav-link" id="nav-settings-btn">SETTINGS</button>
       </div>
-      <div class="feature-text">
-        <div class="feature-title">Cinematic mode</div>
-        <div class="feature-sub">Distraction-free overlay</div>
+    </nav>
+
+    <!-- SECTION 01 — READING TOOLS -->
+    <section class="section">
+      <span class="section-num">.01</span>
+
+      <div class="section-head">
+        <p class="eyebrow">READING TOOLS</p>
+        <h1 class="display-title">FOCUS<br>&amp; READ</h1>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-cinematic" />
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-      </label>
-    </div>
 
-    <div class="row-divider"></div>
-
-    <div class="feature-row" id="row-bionic">
-      <div class="feature-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a5 5 0 0 1 5 5v3a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/><path d="M12 17v5M8 21h8"/></svg>
+      <div class="toggle-list">
+        <div class="toggle-row">
+          <div class="toggle-meta">
+            <div class="toggle-name">CINEMATIC</div>
+            <div class="toggle-sub">Distraction-free overlay</div>
+          </div>
+          <label class="tura-toggle"><input type="checkbox" id="toggle-cinematic"><span class="track"><span class="thumb"></span></span></label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-meta">
+            <div class="toggle-name">FOCUS LINE</div>
+            <div class="toggle-sub">Dims above &amp; below cursor</div>
+          </div>
+          <label class="tura-toggle"><input type="checkbox" id="toggle-focus"><span class="track"><span class="thumb"></span></span></label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-meta">
+            <div class="toggle-name">BIONIC</div>
+            <div class="toggle-sub">Bold-first word mode</div>
+          </div>
+          <label class="tura-toggle"><input type="checkbox" id="toggle-bionic"><span class="track"><span class="thumb"></span></span></label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-meta">
+            <div class="toggle-name">READ ALOUD</div>
+            <div class="toggle-sub">Text-to-speech</div>
+          </div>
+          <label class="tura-toggle"><input type="checkbox" id="toggle-tts"><span class="track"><span class="thumb"></span></span></label>
+        </div>
       </div>
-      <div class="feature-text">
-        <div class="feature-title">Bionic reading</div>
-        <div class="feature-sub">Bold-first word mode</div>
+    </section>
+
+    <div class="rule"></div>
+
+    <!-- SECTION 02 — FOCUS TIMER -->
+    <section class="section">
+      <span class="section-num">.02</span>
+
+      <div class="section-head">
+        <p class="eyebrow">FOCUS TIMER</p>
+        <div class="clock" id="pomo-display">25:00</div>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-bionic" />
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-      </label>
-    </div>
 
-    <div class="row-divider"></div>
-
-    <!-- Focus highlight row (new) -->
-    <div class="feature-row">
-      <div class="feature-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="12" x2="16" y2="12"/><line x1="5" y1="8" x2="19" y2="8" stroke-opacity="0.3"/><line x1="5" y1="16" x2="19" y2="16" stroke-opacity="0.3"/></svg>
+      <div class="pomo-pills">
+        <button class="pomo-pill active" data-mins="25">FOCUS</button>
+        <button class="pomo-pill" data-mins="5">SHORT</button>
+        <button class="pomo-pill" data-mins="15">LONG</button>
       </div>
-      <div class="feature-text">
-        <div class="feature-title">Focus highlight</div>
-        <div class="feature-sub">Dims text above &amp; below cursor</div>
+
+      <div class="btn-row">
+        <button class="tura-btn primary" id="pomo-start">START SESSION</button>
+        <button class="tura-btn" id="pomo-reset">RESET</button>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-focus" />
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-      </label>
-    </div>
+    </section>
 
-    <div class="row-divider"></div>
+    <div class="rule"></div>
 
-    <div class="feature-row" id="row-tts">
-      <div class="feature-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+    <!-- SECTION 03 — AI SUMMARY -->
+    <section class="section">
+      <span class="section-num">.03</span>
+
+      <div class="section-head">
+        <p class="eyebrow" id="ai-label">GEMINI · GOOGLE</p>
+        <h2 class="display-title sm">AI<br>SUMMARY</h2>
       </div>
-      <div class="feature-text">
-        <div class="feature-title">Text to speech</div>
-        <div class="feature-sub">Read full page aloud</div>
+
+      <div class="mode-pills">
+        <button class="mode-pill active" data-mode="summary">SUMMARY</button>
+        <button class="mode-pill" data-mode="keypoints">KEY POINTS</button>
+        <button class="mode-pill" data-mode="simplify">SIMPLIFY</button>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-tts" />
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-      </label>
-    </div>
 
-    <div class="divider" style="margin-top:16px;"></div>
-
-    <!-- POMODORO SECTION (new) -->
-    <div class="section-label">FOCUS TIMER</div>
-    <div class="pomodoro-row">
-      <div class="pomo-display" id="pomo-display">25:00</div>
-      <div class="pomo-controls">
-        <button class="pomo-btn" id="pomo-start">Start</button>
-        <button class="pomo-btn" id="pomo-reset">Reset</button>
+      <div class="status-card" id="status-card">
+        <p id="status-text">Waiting for page content</p>
       </div>
-      <div class="pomo-mode-pills">
-        <button class="pomo-pill active" data-mins="25">Focus</button>
-        <button class="pomo-pill" data-mins="5">Short</button>
-        <button class="pomo-pill" data-mins="15">Long</button>
-      </div>
-    </div>
 
-    <div class="divider"></div>
-
-    <!-- AI SUMMARY SECTION -->
-    <div class="section-label">AI SUMMARY</div>
-
-    <!-- Mode selector pills -->
-    <div class="mode-pills">
-      <button class="pill active" data-mode="summary">Summary</button>
-      <button class="pill" data-mode="keypoints">Key Points</button>
-      <button class="pill" data-mode="simplify">Simplify</button>
-    </div>
-
-    <!-- Summary status card -->
-    <div class="summary-card" id="summary-card">
-      <div class="summary-card-tag" id="summary-ai-label">GEMINI · GOOGLE</div>
-      <div class="summary-card-text" id="summary-status">Waiting for page content</div>
-    </div>
-
-    <!-- Generate button -->
-    <button class="generate-btn" id="btn-generate">
-      <span id="btn-label">Generate smart summary</span>
-      <svg class="generate-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
-    </button>
-
-    <!-- Remove button -->
-    <button class="remove-btn hidden" id="btn-remove">Remove summary</button>
-
-    <div class="divider"></div>
-
-    <!-- SHORTCUTS INFO (new) -->
-    <div class="shortcuts-row" id="shortcuts-info">
-      <div class="shortcut-item"><span class="shortcut-key">Alt+S</span><span class="shortcut-desc">Summarize</span></div>
-      <div class="shortcut-item"><span class="shortcut-key">Alt+F</span><span class="shortcut-desc">Focus mode</span></div>
-      <div class="shortcut-item"><span class="shortcut-key">Alt+R</span><span class="shortcut-desc">Read aloud</span></div>
-      <div class="shortcut-item"><span class="shortcut-key">Alt+X</span><span class="shortcut-desc">Close</span></div>
-    </div>
-
-    <div class="divider"></div>
-
-    <!-- Bottom quick actions -->
-    <div class="quick-row">
-      <button class="quick-btn" id="quick-font">Font size</button>
-      <button class="quick-btn settings-btn" id="quick-settings">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Settings
+      <button class="tura-btn primary full" id="btn-generate">
+        <span id="btn-label">GENERATE SUMMARY</span>
+        <span class="arr">↗</span>
       </button>
+      <button class="tura-btn full hidden" id="btn-remove">REMOVE SUMMARY</button>
+    </section>
+
+    <div class="rule"></div>
+
+    <!-- SHORTCUTS -->
+    <div class="shortcuts-bar">
+      <div class="sc"><span class="sk">ALT+S</span><span class="sd">Summarize</span></div>
+      <div class="sc"><span class="sk">ALT+F</span><span class="sd">Focus</span></div>
+      <div class="sc"><span class="sk">ALT+R</span><span class="sd">Read</span></div>
+      <div class="sc"><span class="sk">ALT+X</span><span class="sd">Close</span></div>
     </div>
 
   </div>
 
-  <!-- SETTINGS PAGE (hidden by default) -->
-  <div class="settings-page hidden" id="settings-page">
-    <div class="settings-header">
-      <button class="back-btn" id="settings-back">←</button>
-      <span class="settings-title">Settings</span>
-    </div>
+  <!-- SETTINGS PAGE -->
+  <div class="popup hidden" id="settings-page">
 
-    <div class="divider"></div>
-    <div class="section-label">API KEYS</div>
+    <nav class="nav">
+      <div class="nav-logo">
+        <span class="logo-top">CL</span>
+        <span class="logo-bot">EAR<br>LIT</span>
+      </div>
+      <div class="nav-links">
+        <button class="nav-link" id="settings-back">← BACK</button>
+      </div>
+    </nav>
 
-    <div class="settings-field">
-      <label class="settings-label">Anthropic API Key <span class="settings-hint">(published mode)</span></label>
-      <input type="password" class="settings-input" id="input-api-key" placeholder="sk-ant-..." />
-    </div>
+    <section class="section">
+      <span class="section-num">.04</span>
+      <div class="section-head">
+        <p class="eyebrow">CONFIGURATION</p>
+        <h2 class="display-title sm">SETTINGS</h2>
+      </div>
 
-    <div class="settings-field">
-      <label class="settings-label">Notion Integration Key</label>
-      <input type="password" class="settings-input" id="input-notion-key" placeholder="secret_..." />
-    </div>
+      <div class="field">
+        <label class="field-label">ANTHROPIC API KEY <span class="hint">— published mode</span></label>
+        <input class="tura-input" type="password" id="input-api-key" placeholder="sk-ant-..." />
+      </div>
+      <div class="field">
+        <label class="field-label">NOTION KEY</label>
+        <input class="tura-input" type="password" id="input-notion-key" placeholder="secret_..." />
+      </div>
+      <div class="field">
+        <label class="field-label">NOTION DATABASE ID</label>
+        <input class="tura-input" type="text" id="input-notion-db" placeholder="xxxxxxxxxxxxxxxx" />
+      </div>
 
-    <div class="settings-field">
-      <label class="settings-label">Notion Database ID</label>
-      <input type="text" class="settings-input" id="input-notion-db" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-    </div>
+      <button class="tura-btn primary full" id="settings-save" style="margin-top:20px">
+        <span>SAVE SETTINGS</span><span class="arr">↗</span>
+      </button>
+      <p class="save-confirm hidden" id="save-confirm">SAVED ✓</p>
+    </section>
 
-    <div class="divider"></div>
-    <div class="section-label">SHORTCUTS</div>
+    <div class="rule"></div>
 
-    <div class="shortcuts-list">
-      <div class="shortcut-row-full"><span class="shortcut-key">Alt+S</span><span>Generate summary</span></div>
-      <div class="shortcut-row-full"><span class="shortcut-key">Alt+K</span><span>Key points</span></div>
-      <div class="shortcut-row-full"><span class="shortcut-key">Alt+F</span><span>Toggle focus highlight</span></div>
-      <div class="shortcut-row-full"><span class="shortcut-key">Alt+R</span><span>Read aloud</span></div>
-      <div class="shortcut-row-full"><span class="shortcut-key">Alt+X</span><span>Close panel</span></div>
-    </div>
+    <section class="section" style="padding-top:0">
+      <p class="eyebrow" style="margin-bottom:10px">SHORTCUTS</p>
+      <div class="sc-list">
+        <div class="sc-row"><span class="sk">ALT+S</span><span>Generate summary</span></div>
+        <div class="sc-row"><span class="sk">ALT+K</span><span>Key points</span></div>
+        <div class="sc-row"><span class="sk">ALT+F</span><span>Toggle focus line</span></div>
+        <div class="sc-row"><span class="sk">ALT+R</span><span>Read aloud</span></div>
+        <div class="sc-row"><span class="sk">ALT+X</span><span>Close panel</span></div>
+      </div>
+    </section>
 
-    <button class="generate-btn" id="settings-save" style="margin-top:16px">
-      <span>Save settings</span>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-    </button>
-
-    <div class="settings-status hidden" id="settings-status">Saved!</div>
   </div>
 
   <script src="popup.js"></script>

@@ -1,317 +1,213 @@
-// popup.js — CLEARLIT v2.1
+// popup.js — CLEARLIT v2.1 · TURA THEME
 
 "use strict";
 
-// ─── ELEMENTS ────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
-const statusDot    = $("status-dot");
-const btnGenerate  = $("btn-generate");
-const btnRemove    = $("btn-remove");
-const btnLabel     = $("btn-label");
-const summaryCard  = $("summary-card");
-const summaryStatus = $("summary-status");
-const summaryAiLabel = $("summary-ai-label");
-
-// Pomodoro
-const pomoDisplay  = $("pomo-display");
-const pomoStart    = $("pomo-start");
-const pomoReset    = $("pomo-reset");
-
-// Settings
-const quickSettings = $("quick-settings");
-const settingsPage  = $("settings-page");
-const settingsBack  = $("settings-back");
-const settingsSave  = $("settings-save");
-const settingsStatus = $("settings-status");
-const popupMain     = document.querySelector(".popup");
-
-// ─── STATE ───────────────────────────────────────────────────
-let selectedMode = "summary";
-let summaryVisible = false;
-
-// Pomodoro state
-let pomoTimer = null;
-let pomoSecondsLeft = 25 * 60;
-let pomoRunning = false;
-let pomoBreak = false;
-let pomoDefaultMins = 25;
 
 // ─── INIT ────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
-  await detectAndSetAuthLabel();
+  await detectAuthLabel();
   await loadSettings();
+  setupNav();
   setupModePills();
   setupToggles();
   setupPomodoro();
-  setupSettingsPage();
-  setupGenerateButton();
-  setupFontQuickBtn();
+  setupGenerate();
+  setupSettings();
 });
 
-// ─── AUTH MODE LABEL ─────────────────────────────────────────
-async function detectAndSetAuthLabel() {
+// ─── AUTH LABEL ──────────────────────────────────────────────
+async function detectAuthLabel() {
+  const label = $("ai-label");
   try {
-    const url = chrome.runtime.getURL("credentials.json");
-    const res = await fetch(url);
+    const res = await fetch(chrome.runtime.getURL("credentials.json"));
     if (res.ok) {
-      const data = await res.json();
-      if (data.client_email && data.private_key) {
-        summaryAiLabel.textContent = "GEMINI · GOOGLE VERTEX AI";
+      const d = await res.json();
+      if (d.client_email && d.private_key) {
+        label.textContent = "GEMINI · GOOGLE VERTEX AI";
         return;
       }
     }
   } catch (_) {}
-
-  // Check for stored Anthropic key
   const { apiKey } = await chrome.storage.sync.get("apiKey");
-  if (apiKey) {
-    summaryAiLabel.textContent = "CLAUDE · ANTHROPIC";
-  } else {
-    summaryAiLabel.textContent = "NO KEY CONFIGURED";
-    summaryStatus.textContent = "Add an API key in Settings →";
-  }
+  label.textContent = apiKey ? "CLAUDE · ANTHROPIC" : "NO KEY — ADD IN SETTINGS";
 }
 
-// ─── LOAD SETTINGS ───────────────────────────────────────────
+// ─── LOAD SAVED SETTINGS ─────────────────────────────────────
 async function loadSettings() {
-  const settings = await new Promise(res => chrome.storage.sync.get(null, res));
+  const s = await new Promise(r => chrome.storage.sync.get(null, r));
+  if (s.apiKey)        $("input-api-key").value    = s.apiKey;
+  if (s.notionKey)     $("input-notion-key").value  = s.notionKey;
+  if (s.notionDbId)    $("input-notion-db").value   = s.notionDbId;
+  if (s.focusHighlight) $("toggle-focus").checked   = true;
+  if (s.bionic)         $("toggle-bionic").checked  = true;
+  if (s.cinematic)      $("toggle-cinematic").checked = true;
+}
 
-  if (settings.apiKey)     $("input-api-key").value   = settings.apiKey;
-  if (settings.notionKey)  $("input-notion-key").value = settings.notionKey;
-  if (settings.notionDbId) $("input-notion-db").value  = settings.notionDbId;
-
-  // Restore toggle states
-  if (settings.focusHighlight) $("toggle-focus").checked = true;
-  if (settings.bionic)         $("toggle-bionic").checked = true;
-  if (settings.cinematic)      $("toggle-cinematic").checked = true;
+// ─── NAV TABS ────────────────────────────────────────────────
+function setupNav() {
+  $("nav-settings-btn").addEventListener("click", () => {
+    $("popup-main").classList.add("hidden");
+    $("settings-page").classList.remove("hidden");
+  });
+  $("settings-back").addEventListener("click", () => {
+    $("settings-page").classList.add("hidden");
+    $("popup-main").classList.remove("hidden");
+  });
 }
 
 // ─── MODE PILLS ──────────────────────────────────────────────
+let selectedMode = "summary";
 function setupModePills() {
-  document.querySelectorAll(".pill[data-mode]").forEach(pill => {
-    pill.addEventListener("click", () => {
-      document.querySelectorAll(".pill[data-mode]").forEach(p => p.classList.remove("active"));
-      pill.classList.add("active");
-      selectedMode = pill.dataset.mode;
+  document.querySelectorAll(".mode-pill").forEach(p => {
+    p.addEventListener("click", () => {
+      document.querySelectorAll(".mode-pill").forEach(x => x.classList.remove("active"));
+      p.classList.add("active");
+      selectedMode = p.dataset.mode;
     });
   });
 }
 
 // ─── TOGGLES ─────────────────────────────────────────────────
 function setupToggles() {
-  // Focus highlight
-  $("toggle-focus").addEventListener("change", (e) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-      chrome.tabs.sendMessage(tabs[0].id, { action: "toggleFocusHighlight" });
-    });
+  const send = (action, extra = {}) =>
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs =>
+      chrome.tabs.sendMessage(tabs[0].id, { action, ...extra }));
+
+  $("toggle-focus").addEventListener("change", e => {
+    send("toggleFocusHighlight");
     chrome.storage.sync.set({ focusHighlight: e.target.checked });
   });
-
-  // TTS (handled in content script via generate button flow)
-  $("toggle-tts").addEventListener("change", (e) => {
-    if (e.target.checked) {
-      chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-        chrome.tabs.sendMessage(tabs[0].id, { action: "toggleTTS" });
-      });
-    }
-  });
-
-  // Cinematic / Bionic — save state
-  $("toggle-cinematic").addEventListener("change", (e) => {
+  $("toggle-cinematic").addEventListener("change", e => {
+    send("toggleCinematic", { enabled: e.target.checked });
     chrome.storage.sync.set({ cinematic: e.target.checked });
-    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-      chrome.tabs.sendMessage(tabs[0].id, { action: "toggleCinematic", enabled: e.target.checked });
-    });
   });
-
-  $("toggle-bionic").addEventListener("change", (e) => {
+  $("toggle-bionic").addEventListener("change", e => {
+    send("toggleBionic", { enabled: e.target.checked });
     chrome.storage.sync.set({ bionic: e.target.checked });
-    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-      chrome.tabs.sendMessage(tabs[0].id, { action: "toggleBionic", enabled: e.target.checked });
-    });
+  });
+  $("toggle-tts").addEventListener("change", e => {
+    if (e.target.checked) send("toggleTTS");
   });
 }
 
-// ─── POMODORO TIMER ──────────────────────────────────────────
+// ─── POMODORO ────────────────────────────────────────────────
+let pomoTimer = null, pomoSecs = 25 * 60, pomoRunning = false;
+let pomoBreak = false, pomoMins = 25;
+
+function fmt(s) {
+  return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+}
+
 function setupPomodoro() {
-  // Mode pills
-  document.querySelectorAll(".pomo-pill").forEach(pill => {
-    pill.addEventListener("click", () => {
-      document.querySelectorAll(".pomo-pill").forEach(p => p.classList.remove("active"));
-      pill.classList.add("active");
-      pomoDefaultMins = parseInt(pill.dataset.mins);
-      resetPomodoro();
+  document.querySelectorAll(".pomo-pill").forEach(p => {
+    p.addEventListener("click", () => {
+      document.querySelectorAll(".pomo-pill").forEach(x => x.classList.remove("active"));
+      p.classList.add("active");
+      pomoMins = parseInt(p.dataset.mins);
+      resetPomo();
     });
   });
 
-  pomoStart.addEventListener("click", () => {
-    if (pomoRunning) {
-      pausePomodoro();
-    } else {
-      startPomodoro();
-    }
-  });
-
-  pomoReset.addEventListener("click", resetPomodoro);
+  $("pomo-start").addEventListener("click", () => pomoRunning ? pausePomo() : startPomo());
+  $("pomo-reset").addEventListener("click", resetPomo);
 }
 
-function formatTime(secs) {
-  const m = Math.floor(secs / 60).toString().padStart(2, "0");
-  const s = (secs % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
-}
-
-function startPomodoro() {
+function startPomo() {
   pomoRunning = true;
-  pomoStart.textContent = "Pause";
-  pomoStart.classList.add("active-run");
-  pomoDisplay.className = pomoBreak ? "pomo-display break" : "pomo-display running";
-
+  $("pomo-start").textContent = "PAUSE";
+  $("pomo-display").className = "clock running";
   pomoTimer = setInterval(() => {
-    pomoSecondsLeft--;
-    pomoDisplay.textContent = formatTime(pomoSecondsLeft);
-
-    if (pomoSecondsLeft <= 0) {
-      clearInterval(pomoTimer);
-      pomoRunning = false;
-      pomoDisplay.className = "pomo-display done";
-      pomoStart.textContent = "Start";
-      pomoStart.classList.remove("active-run");
-
-      // Notify background to fire system notification
-      chrome.runtime.sendMessage({
-        action: "pomodoroComplete",
-        isBreak: pomoBreak
-      });
-
-      // Switch mode
+    pomoSecs--;
+    $("pomo-display").textContent = fmt(pomoSecs);
+    if (pomoSecs <= 0) {
+      clearInterval(pomoTimer); pomoRunning = false;
+      $("pomo-display").className = "clock done";
+      $("pomo-start").textContent = "START SESSION";
+      chrome.runtime.sendMessage({ action: "pomodoroComplete", isBreak: pomoBreak });
       pomoBreak = !pomoBreak;
-      pomoSecondsLeft = pomoBreak ? 5 * 60 : pomoDefaultMins * 60;
-      pomoDisplay.textContent = formatTime(pomoSecondsLeft);
+      pomoSecs = pomoBreak ? 5 * 60 : pomoMins * 60;
+      $("pomo-display").textContent = fmt(pomoSecs);
+      $("pomo-display").className = "clock";
     }
   }, 1000);
 }
 
-function pausePomodoro() {
-  clearInterval(pomoTimer);
-  pomoRunning = false;
-  pomoStart.textContent = "Resume";
-  pomoStart.classList.remove("active-run");
-  pomoDisplay.className = "pomo-display";
+function pausePomo() {
+  clearInterval(pomoTimer); pomoRunning = false;
+  $("pomo-start").textContent = "RESUME";
+  $("pomo-display").className = "clock";
 }
 
-function resetPomodoro() {
-  clearInterval(pomoTimer);
-  pomoRunning = false;
-  pomoBreak = false;
-  pomoSecondsLeft = pomoDefaultMins * 60;
-  pomoDisplay.textContent = formatTime(pomoSecondsLeft);
-  pomoDisplay.className = "pomo-display";
-  pomoStart.textContent = "Start";
-  pomoStart.classList.remove("active-run");
+function resetPomo() {
+  clearInterval(pomoTimer); pomoRunning = false; pomoBreak = false;
+  pomoSecs = pomoMins * 60;
+  $("pomo-display").textContent = fmt(pomoSecs);
+  $("pomo-display").className = "clock";
+  $("pomo-start").textContent = "START SESSION";
 }
 
-// ─── SETTINGS PAGE ───────────────────────────────────────────
-function setupSettingsPage() {
-  quickSettings.addEventListener("click", () => {
-    popupMain.classList.add("hidden");
-    settingsPage.classList.remove("hidden");
-  });
-
-  settingsBack.addEventListener("click", () => {
-    settingsPage.classList.add("hidden");
-    popupMain.classList.remove("hidden");
-  });
-
-  settingsSave.addEventListener("click", async () => {
-    const settings = {
-      apiKey:     $("input-api-key").value.trim(),
-      notionKey:  $("input-notion-key").value.trim(),
-      notionDbId: $("input-notion-db").value.trim()
-    };
-
-    await new Promise(res => chrome.storage.sync.set(settings, res));
-
-    settingsStatus.classList.remove("hidden");
-    settingsStatus.textContent = "Saved!";
-    setTimeout(() => settingsStatus.classList.add("hidden"), 2000);
-
-    // Re-detect auth mode label
-    await detectAndSetAuthLabel();
-  });
-}
-
-// ─── GENERATE BUTTON ─────────────────────────────────────────
-function setupGenerateButton() {
-  btnGenerate.addEventListener("click", async () => {
-    if (btnGenerate.disabled) return;
-
-    btnGenerate.disabled = true;
-    btnLabel.textContent = "Analyzing…";
-    statusDot.className = "header-dot loading";
+// ─── GENERATE ────────────────────────────────────────────────
+function setupGenerate() {
+  $("btn-generate").addEventListener("click", () => {
+    const btn = $("btn-generate");
+    if (btn.disabled) return;
+    btn.disabled = true;
+    $("btn-label").textContent = "ANALYZING…";
 
     // Show skeleton
-    summaryCard.innerHTML = `
-      <div class="summary-card-tag" id="summary-ai-label">${summaryAiLabel.textContent}</div>
-      <div class="skeleton-line" style="width:90%"></div>
-      <div class="skeleton-line" style="width:80%"></div>
-      <div class="skeleton-line" style="width:55%"></div>`;
+    $("status-card").innerHTML =
+      `<div class="skel" style="width:90%"></div>
+       <div class="skel" style="width:75%"></div>
+       <div class="skel"></div>`;
 
     chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
       chrome.tabs.sendMessage(
         tabs[0].id,
         { action: "triggerSummary", mode: selectedMode },
-        (res) => {
+        res => {
+          btn.disabled = false;
           if (chrome.runtime.lastError) {
-            showError("Cannot run on this page.");
+            showErr("Cannot run on this page.");
             return;
           }
-
-          // The content script handles the heavy lifting;
-          // we just need to update popup state
-          statusDot.className = "header-dot active";
-          btnGenerate.disabled = false;
-          btnLabel.textContent = "Regenerate";
-          summaryVisible = true;
-          btnRemove.classList.remove("hidden");
-
-          summaryCard.innerHTML = `
-            <div class="summary-card-tag">${summaryAiLabel.textContent}</div>
-            <div class="summary-card-text loaded">Summary generated — see panel on page</div>`;
+          $("btn-label").textContent = "REGENERATE";
+          $("btn-remove").classList.remove("hidden");
+          $("btn-remove").classList.remove("tura-btn");
+          $("btn-remove").className = "tura-btn full";
+          $("status-card").innerHTML =
+            `<p class="loaded">Summary generated — see panel on page ↓</p>`;
         }
       );
     });
   });
 
-  btnRemove.addEventListener("click", () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-      chrome.tabs.sendMessage(tabs[0].id, { action: "removeSummary" });
-    });
-    btnRemove.classList.add("hidden");
-    summaryVisible = false;
-    btnLabel.textContent = "Generate smart summary";
-    statusDot.className = "header-dot";
-    summaryCard.innerHTML = `
-      <div class="summary-card-tag">${summaryAiLabel.textContent}</div>
-      <div class="summary-card-text">Waiting for page content</div>`;
+  $("btn-remove").addEventListener("click", () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs =>
+      chrome.tabs.sendMessage(tabs[0].id, { action: "removeSummary" }));
+    $("btn-remove").classList.add("hidden");
+    $("btn-label").textContent = "GENERATE SUMMARY";
+    $("status-card").innerHTML = `<p>Waiting for page content</p>`;
   });
 }
 
-function showError(msg) {
-  btnGenerate.disabled = false;
-  btnLabel.textContent = "Generate smart summary";
-  statusDot.className = "header-dot";
-  summaryCard.innerHTML = `
-    <div class="summary-card-tag">ERROR</div>
-    <div class="summary-card-text" style="color:#c0392b">${msg}</div>`;
+function showErr(msg) {
+  $("btn-generate").disabled = false;
+  $("btn-label").textContent = "GENERATE SUMMARY";
+  $("status-card").innerHTML = `<p style="color:#f0b8b8">${msg}</p>`;
 }
 
-// ─── FONT QUICK BTN ──────────────────────────────────────────
-function setupFontQuickBtn() {
-  $("quick-font").addEventListener("click", () => {
-    // Triggers the font panel in the content script panel
-    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-      chrome.tabs.sendMessage(tabs[0].id, { action: "toggleFontPanel" });
-    });
+// ─── SETTINGS ────────────────────────────────────────────────
+function setupSettings() {
+  $("settings-save").addEventListener("click", async () => {
+    await new Promise(r => chrome.storage.sync.set({
+      apiKey:     $("input-api-key").value.trim(),
+      notionKey:  $("input-notion-key").value.trim(),
+      notionDbId: $("input-notion-db").value.trim()
+    }, r));
+    const conf = $("save-confirm");
+    conf.classList.remove("hidden");
+    setTimeout(() => conf.classList.add("hidden"), 2000);
+    await detectAuthLabel();
   });
 }

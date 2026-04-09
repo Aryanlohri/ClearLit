@@ -38,136 +38,177 @@
     return host;
   }
 
-  // ─── SHADOW STYLES ───────────────────────────────────────────
+  // ─── SHADOW STYLES — TURA THEME ──────────────────────────────
   const SHADOW_CSS = `
+    @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;600;700;800&family=Barlow:wght@300;400&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
     #cl-panel{
       all:initial;pointer-events:all;position:fixed;
       top:16px;left:50%;transform:translateX(-50%);
       width:min(860px,calc(100vw - 32px));
-      background:#0c0c0c;color:#e0e0e0;
-      border-radius:14px;border:1px solid #222;
-      box-shadow:0 8px 40px rgba(0,0,0,0.7);overflow:hidden;
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-      font-size:14px;line-height:1.6;
+      background:#2c2f30;color:#fff;
+      border:1px solid rgba(255,255,255,0.08);
+      box-shadow:0 12px 60px rgba(0,0,0,0.8);overflow:hidden;
+      font-family:'Barlow',sans-serif;
+      font-size:13px;line-height:1.6;
     }
     #cl-header{
       display:flex;align-items:center;justify-content:space-between;
-      padding:11px 16px;border-bottom:1px solid #1c1c1c;
-      background:#0a0a0a;user-select:none;
+      padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.08);
+      background:#252829;user-select:none;
     }
-    #cl-header-left{display:flex;align-items:center;gap:10px}
-    #cl-wordmark{font-size:13px;font-weight:600;letter-spacing:2px;color:#fff;text-transform:uppercase}
-    #cl-wordmark span{color:#444}
-    #cl-meta{font-size:11px;color:#444;letter-spacing:0.5px}
+    #cl-header-left{display:flex;align-items:center;gap:14px}
+    #cl-wordmark{
+      display:flex;align-items:flex-start;gap:2px;line-height:1;
+    }
+    #cl-wm-top{
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:15px;font-weight:800;letter-spacing:0.04em;color:#fff;
+    }
+    #cl-wm-bot{
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:7px;font-weight:300;letter-spacing:0.14em;
+      color:#8a9090;line-height:1.2;padding-top:2px;
+    }
+    #cl-meta{
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:9px;font-weight:600;letter-spacing:0.2em;
+      color:#4a5050;text-transform:uppercase;
+    }
     #cl-header-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
     .cl-btn{
-      all:unset;cursor:pointer;font-size:11px;color:#555;
-      padding:4px 9px;border:1px solid #222;border-radius:6px;
-      transition:color 0.15s,border-color 0.15s,background 0.15s;
-      letter-spacing:0.4px;white-space:nowrap;
+      all:unset;cursor:pointer;
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:9px;font-weight:700;letter-spacing:0.18em;
+      color:#4a5050;padding:5px 10px;
+      border:1px solid #4a5050;border-radius:2px;
+      transition:all 0.15s;white-space:nowrap;
     }
-    .cl-btn:hover{color:#ccc;border-color:#444;background:#111}
-    .cl-btn.active{color:#fff;border-color:#555;background:#1a1a1a}
+    .cl-btn:hover{color:#fff;border-color:#8a9090;background:rgba(255,255,255,0.04)}
+    .cl-btn.active{color:#2c2f30;background:#fff;border-color:#fff}
     .cl-btn-icon{
-      all:unset;cursor:pointer;font-size:14px;color:#444;
-      width:26px;height:26px;display:flex;align-items:center;
-      justify-content:center;border-radius:6px;
-      transition:color 0.15s,background 0.15s;
+      all:unset;cursor:pointer;
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:9px;font-weight:700;letter-spacing:0.15em;
+      color:#4a5050;padding:5px 8px;border:1px solid transparent;border-radius:2px;
+      transition:all 0.15s;
     }
-    .cl-btn-icon:hover{color:#ccc;background:#141414}
+    .cl-btn-icon:hover{color:#fff;border-color:#4a5050}
     #cl-body{
-      padding:16px;max-height:320px;overflow-y:auto;
-      scrollbar-width:thin;scrollbar-color:#222 transparent;
+      padding:16px 18px;max-height:280px;overflow-y:auto;
+      scrollbar-width:thin;scrollbar-color:#3a3f40 transparent;
       transition:max-height 0.25s ease,padding 0.25s ease;
     }
     #cl-body.collapsed{max-height:0;padding-top:0;padding-bottom:0;overflow:hidden}
-    #cl-body::-webkit-scrollbar{width:4px}
-    #cl-body::-webkit-scrollbar-track{background:transparent}
-    #cl-body::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
-    #cl-text{color:#bbb;font-size:14px;line-height:1.75;white-space:pre-wrap}
+    #cl-body::-webkit-scrollbar{width:3px}
+    #cl-body::-webkit-scrollbar-thumb{background:#3a3f40;border-radius:1px}
+    #cl-text{
+      font-family:'Barlow',sans-serif;
+      color:#c8cccc;font-size:13px;font-weight:300;
+      line-height:1.8;white-space:pre-wrap;
+    }
     #cl-cursor{
-      display:inline-block;width:2px;height:14px;background:#555;
+      display:inline-block;width:2px;height:13px;background:#8a9090;
       vertical-align:middle;margin-left:2px;transition:opacity 0.1s;
     }
     .cl-shimmer{
-      height:11px;margin-bottom:10px;border-radius:4px;
-      background:#161616;position:relative;overflow:hidden;
+      height:10px;margin-bottom:9px;border-radius:1px;
+      background:#323637;position:relative;overflow:hidden;
     }
     .cl-shimmer::after{
       content:'';position:absolute;inset:0;
-      background:linear-gradient(90deg,transparent 0%,#202020 50%,transparent 100%);
+      background:linear-gradient(90deg,transparent,#3a3f40,transparent);
       animation:sh 1.4s infinite;
     }
     @keyframes sh{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
 
     /* ── TONE BAR ── */
     #cl-tone-bar{
-      padding:10px 16px;border-top:1px solid #1a1a1a;
-      background:#080808;display:flex;align-items:center;gap:12px;
-      flex-wrap:wrap;
+      padding:10px 18px;border-top:1px solid rgba(255,255,255,0.06);
+      background:#1e2122;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
     }
     .cl-tone-chip{
-      font-size:10px;letter-spacing:0.5px;padding:3px 8px;
-      border-radius:100px;border:1px solid #222;color:#666;
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:9px;font-weight:700;letter-spacing:0.18em;
+      padding:3px 9px;border-radius:2px;border:1px solid;
     }
-    .cl-tone-chip.tone-neutral{color:#8aad8a;border-color:#2a3d2a}
-    .cl-tone-chip.tone-persuasive{color:#adad8a;border-color:#3d3d2a}
-    .cl-tone-chip.tone-emotional{color:#ad8a8a;border-color:#3d2a2a}
-    .cl-tone-chip.tone-alarming{color:#c06060;border-color:#3d2020}
-    .cl-tone-chip.tone-promotional{color:#8aadc0;border-color:#2a3040}
-    .cl-bias-bar{display:flex;align-items:center;gap:6px;margin-left:auto}
-    .cl-bias-label{font-size:10px;color:#444;letter-spacing:0.3px}
+    .cl-tone-chip.tone-neutral{color:#b8f0c8;border-color:rgba(184,240,200,0.25);background:rgba(184,240,200,0.06)}
+    .cl-tone-chip.tone-persuasive{color:#f0e8b8;border-color:rgba(240,232,184,0.25);background:rgba(240,232,184,0.06)}
+    .cl-tone-chip.tone-emotional{color:#f0c8b8;border-color:rgba(240,200,184,0.25);background:rgba(240,200,184,0.06)}
+    .cl-tone-chip.tone-alarming{color:#f0b8b8;border-color:rgba(240,184,184,0.25);background:rgba(240,184,184,0.06)}
+    .cl-tone-chip.tone-promotional{color:#b8d8f0;border-color:rgba(184,216,240,0.25);background:rgba(184,216,240,0.06)}
+    .cl-bias-bar{display:flex;align-items:center;gap:8px;margin-left:auto}
+    .cl-bias-label{
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:8px;font-weight:600;letter-spacing:0.15em;color:#4a5050;
+    }
     .cl-bias-track{
-      width:80px;height:4px;border-radius:2px;
-      background:linear-gradient(90deg,#3060c0,#444,#c03030);
+      width:72px;height:3px;border-radius:1px;
+      background:linear-gradient(90deg,#4060a0,#3a3f40,#a04040);
       position:relative;
     }
     .cl-bias-dot{
       position:absolute;top:50%;transform:translate(-50%,-50%);
-      width:8px;height:8px;border-radius:50%;background:#fff;
-      border:1px solid #555;transition:left 0.4s;
+      width:7px;height:7px;border-radius:50%;background:#fff;
+      border:1px solid #8a9090;transition:left 0.4s;
     }
-    .cl-signals{font-size:10px;color:#3a3a3a;font-style:italic}
+    .cl-signals{
+      font-family:'Barlow',sans-serif;
+      font-size:10px;font-weight:300;color:#4a5050;font-style:italic;
+    }
 
-    /* ── FONT CONTROLS PANEL ── */
+    /* ── FONT CONTROLS ── */
     #cl-font-panel{
-      padding:12px 16px;border-top:1px solid #1a1a1a;
-      background:#060606;display:none;gap:14px;flex-wrap:wrap;align-items:center;
+      padding:12px 18px;border-top:1px solid rgba(255,255,255,0.06);
+      background:#1e2122;display:none;gap:14px;flex-wrap:wrap;align-items:center;
     }
     #cl-font-panel.open{display:flex}
-    .cl-fc-label{font-size:10px;color:#444;letter-spacing:0.4px;min-width:70px}
+    .cl-fc-label{
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:8px;font-weight:600;letter-spacing:0.18em;
+      color:#4a5050;min-width:76px;
+    }
     .cl-fc-row{display:flex;align-items:center;gap:8px}
     .cl-range{
       -webkit-appearance:none;appearance:none;
-      width:90px;height:3px;border-radius:2px;
-      background:#222;outline:none;cursor:pointer;
+      width:90px;height:2px;border-radius:1px;
+      background:#3a3f40;outline:none;cursor:pointer;
     }
     .cl-range::-webkit-slider-thumb{
-      -webkit-appearance:none;width:12px;height:12px;border-radius:50%;
-      background:#555;cursor:pointer;transition:background 0.15s;
+      -webkit-appearance:none;width:11px;height:11px;border-radius:50%;
+      background:#8a9090;cursor:pointer;transition:background 0.15s;
     }
-    .cl-range::-webkit-slider-thumb:hover{background:#aaa}
-    .cl-val{font-size:10px;color:#555;min-width:24px;text-align:right}
+    .cl-range::-webkit-slider-thumb:hover{background:#fff}
+    .cl-val{
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:9px;color:#4a5050;min-width:28px;text-align:right;letter-spacing:0.05em;
+    }
     .cl-select{
-      background:#111;border:1px solid #222;color:#888;
-      font-size:11px;padding:2px 6px;border-radius:4px;cursor:pointer;
+      background:#252829;border:1px solid rgba(255,255,255,0.08);color:#8a9090;
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:10px;letter-spacing:0.1em;
+      padding:3px 7px;border-radius:2px;cursor:pointer;outline:none;
     }
-    .cl-select:focus{outline:none;border-color:#444}
 
     /* ── EXPORT PANEL ── */
     #cl-export-panel{
-      padding:12px 16px;border-top:1px solid #1a1a1a;
-      background:#060606;display:none;gap:8px;flex-wrap:wrap;align-items:center;
+      padding:12px 18px;border-top:1px solid rgba(255,255,255,0.06);
+      background:#1e2122;display:none;gap:6px;flex-wrap:wrap;align-items:center;
     }
     #cl-export-panel.open{display:flex}
     .cl-export-btn{
-      all:unset;cursor:pointer;font-size:11px;color:#666;
-      padding:5px 12px;border:1px solid #222;border-radius:6px;
+      all:unset;cursor:pointer;
+      font-family:'Barlow Condensed',sans-serif;
+      font-size:9px;font-weight:700;letter-spacing:0.15em;
+      color:#4a5050;padding:5px 11px;
+      border:1px solid rgba(255,255,255,0.08);border-radius:2px;
       transition:all 0.15s;display:flex;align-items:center;gap:5px;
     }
-    .cl-export-btn:hover{color:#ccc;border-color:#444;background:#111}
-    .cl-export-status{font-size:11px;color:#555;font-style:italic}
+    .cl-export-btn:hover{color:#fff;border-color:#8a9090;background:rgba(255,255,255,0.04)}
+    .cl-export-status{
+      font-family:'Barlow',sans-serif;
+      font-size:10px;font-weight:300;color:#4a5050;font-style:italic;
+    }
   `;
 
   function ensureShadowStyles() {
@@ -258,8 +299,11 @@
       <div id="cl-panel">
         <div id="cl-header">
           <div id="cl-header-left">
-            <div id="cl-wordmark">Clear<span>Lit</span></div>
-            <div id="cl-meta">Analyzing…</div>
+            <div id="cl-wordmark">
+              <span id="cl-wm-top">CL</span>
+              <span id="cl-wm-bot">EAR<br>LIT</span>
+            </div>
+            <div id="cl-meta">ANALYZING…</div>
           </div>
           <div id="cl-header-right">
             <button class="cl-btn-icon" id="cl-close">✕</button>
@@ -358,14 +402,17 @@
       <div id="cl-panel">
         <div id="cl-header">
           <div id="cl-header-left">
-            <div id="cl-wordmark">Clear<span>Lit</span></div>
+            <div id="cl-wordmark">
+              <span id="cl-wm-top">CL</span>
+              <span id="cl-wm-bot">EAR<br>LIT</span>
+            </div>
             <div id="cl-meta">${readingTime}</div>
           </div>
           <div id="cl-header-right">
-            <button class="cl-btn" id="cl-tts">🔊 Read</button>
+            <button class="cl-btn" id="cl-tts">READ</button>
             <button class="cl-btn" id="cl-font-btn">Aa</button>
-            <button class="cl-btn" id="cl-export-btn-hdr">Export</button>
-            <button class="cl-btn" id="cl-toggle">Collapse</button>
+            <button class="cl-btn" id="cl-export-btn-hdr">EXPORT</button>
+            <button class="cl-btn" id="cl-toggle">COLLAPSE</button>
             <button class="cl-btn-icon" id="cl-close">✕</button>
           </div>
         </div>
@@ -536,11 +583,16 @@
     shadowRoot.innerHTML = shadowRoot.querySelector("style").outerHTML + `
       <div id="cl-panel">
         <div id="cl-header">
-          <div id="cl-header-left"><div id="cl-wordmark">Clear<span>Lit</span></div></div>
+          <div id="cl-header-left">
+            <div id="cl-wordmark">
+              <span id="cl-wm-top">CL</span>
+              <span id="cl-wm-bot">EAR<br>LIT</span>
+            </div>
+          </div>
           <div id="cl-header-right"><button class="cl-btn-icon" id="cl-close">✕</button></div>
         </div>
         <div id="cl-body">
-          <span style="color:#c0392b;font-size:13px;">⚠ ${msg}</span>
+          <span style="font-family:'Barlow',sans-serif;font-size:12px;font-weight:300;color:#f0b8b8;">⚠ ${msg}</span>
         </div>
       </div>`;
     shadowRoot.getElementById("cl-close").onclick = removePanel;
