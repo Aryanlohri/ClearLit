@@ -1,380 +1,353 @@
-// background.js — CLEARLIT v2.1 (Medium features: tone/bias, credibility, shortcuts, export)
+/* popup.css — CLEARLIT v2.1 · TURA color palette */
 
-"use strict";
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500&display=swap');
 
-// ─────────────────────────────────────────────────────────────
-// AUTH MODE DETECTION
-// LOCAL (dev): uses credentials.json + Google OAuth (Vertex AI)
-// PUBLISHED: uses ANTHROPIC_API_KEY stored in chrome.storage
-// ─────────────────────────────────────────────────────────────
-let _tokenCache = null;
-let _authMode = null; // "local" | "published"
-
-async function detectAuthMode() {
-  if (_authMode) return _authMode;
-  try {
-    const url = chrome.runtime.getURL("credentials.json");
-    const res = await fetch(url);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.client_email && data.private_key) {
-        _authMode = "local";
-        return "local";
-      }
-    }
-  } catch (_) {}
-  _authMode = "published";
-  return "published";
+:root {
+  /* TURA palette */
+  --bg:          #2c2f30;
+  --bg-card:     #323637;
+  --bg-card-2:   #252829;
+  --bg-hover:    #383c3d;
+  --border:      rgba(255,255,255,0.09);
+  --text-1:      #f0f0ee;
+  --text-2:      #7a8484;
+  --text-3:      #484f50;
+  --toggle-off:  #1e2122;
+  --toggle-on:   #f0f0ee;
+  --radius-card: 10px;
+  --radius-pill: 100px;
 }
 
-// ─────────────────────────────────────────────────────────────
-// MESSAGE HANDLER
-// ─────────────────────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  if (request.action === "generateSummary") {
-    generateSummary(request.text, request.mode || "summary")
-      .then(summary => sendResponse({ success: true, summary }))
-      .catch(err => {
-        console.error("[ClearLit]", err);
-        sendResponse({ success: false, error: err.message });
-      });
-    return true;
-  }
-
-  if (request.action === "getCredibilityScore") {
-    getCredibilityScore(request.domain)
-      .then(score => sendResponse({ success: true, score }))
-      .catch(err => sendResponse({ success: false, error: err.message }));
-    return true;
-  }
-
-  if (request.action === "exportToNotion") {
-    exportToNotion(request.title, request.summary, request.url)
-      .then(result => sendResponse({ success: true, result }))
-      .catch(err => sendResponse({ success: false, error: err.message }));
-    return true;
-  }
-
-  if (request.action === "saveSettings") {
-    chrome.storage.sync.set(request.settings, () => sendResponse({ success: true }));
-    return true;
-  }
-
-  if (request.action === "getSettings") {
-    chrome.storage.sync.get(null, (settings) => sendResponse({ success: true, settings }));
-    return true;
-  }
-
-  if (request.action === "pomodoroComplete") {
-    chrome.notifications.create({
-      type: "basic",
-      iconUrl: "icons/icon48.png",
-      title: "ClearLit · Pomodoro",
-      message: request.isBreak ? "Break's over! Time to focus." : "Focus session complete! Take a break.",
-      priority: 2
-    });
-    sendResponse({ success: true });
-    return true;
-  }
-
-});
-
-// ─────────────────────────────────────────────────────────────
-// LOAD SERVICE ACCOUNT (local dev mode)
-// ─────────────────────────────────────────────────────────────
-async function loadServiceAccount() {
-  const url = chrome.runtime.getURL("credentials.json");
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Could not load credentials.json (HTTP ${res.status}).`);
-  const data = await res.json();
-  const required = ["client_email", "private_key", "project_id", "token_uri"];
-  for (const field of required) {
-    if (!data[field]) throw new Error(`credentials.json missing field: "${field}"`);
-  }
-  return data;
+body {
+  width: 320px;
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: 'Barlow', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
 }
 
-// ─────────────────────────────────────────────────────────────
-// GOOGLE OAUTH (local dev mode)
-// ─────────────────────────────────────────────────────────────
-async function importPrivateKey(pem) {
-  const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-    .replace(/-----END PRIVATE KEY-----/g, "")
-    .replace(/\r?\n/g, "").trim();
-  const binary = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-  return crypto.subtle.importKey(
-    "pkcs8", binary.buffer,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false, ["sign"]
-  );
+html, body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overflow-x: hidden;
+}
+::-webkit-scrollbar { display: none !important; width: 0 !important; }
+
+.popup {
+  padding: 0 0 8px 0;
+  animation: fadeUp 0.22s ease both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-function b64url(obj) {
-  return btoa(JSON.stringify(obj)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
-}
-function b64urlBytes(bytes) {
-  return btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
-}
-
-async function getGoogleAccessToken(serviceAccount) {
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: "RS256", typ: "JWT" };
-  const claim = {
-    iss: serviceAccount.client_email,
-    scope: "https://www.googleapis.com/auth/cloud-platform",
-    aud: serviceAccount.token_uri,
-    exp: now + 3600, iat: now
-  };
-  const unsignedJWT = `${b64url(header)}.${b64url(claim)}`;
-  const key = await importPrivateKey(serviceAccount.private_key);
-  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsignedJWT));
-  const signedJWT = `${unsignedJWT}.${b64urlBytes(signature)}`;
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: signedJWT })
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error(`OAuth failed: ${data.error_description || data.error}`);
-  return data.access_token;
+/* ── HEADER ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
 }
 
-async function getCachedAccessToken() {
-  const now = Date.now();
-  if (_tokenCache && now < _tokenCache.expiresAt) return _tokenCache.token;
-  const serviceAccount = await loadServiceAccount();
-  const token = await getGoogleAccessToken(serviceAccount);
-  _tokenCache = { token, expiresAt: now + 55 * 60 * 1000 };
-  return token;
+.header-logo {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+.logo-clear { color: var(--text-1); }
+.logo-lit   { color: var(--text-3); }
+
+.header-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+  transition: background 0.3s;
+}
+.header-dot.active  { background: #7acf95; box-shadow: 0 0 6px rgba(122,207,149,0.4); }
+.header-dot.loading { background: #c9a84c; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── DIVIDERS ── */
+.divider     { height: 1px; background: var(--border); }
+.row-divider { height: 1px; background: var(--border); margin-left: 56px; }
+
+/* ── SECTION LABEL ── */
+.section-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text-3);
+  padding: 14px 20px 10px;
+  text-transform: uppercase;
 }
 
-// ─────────────────────────────────────────────────────────────
-// FETCH WITH RETRY
-// ─────────────────────────────────────────────────────────────
-async function fetchWithRetry(url, options, maxRetries = 3) {
-  const RETRYABLE = new Set([429, 500, 502, 503, 504]);
-  let lastError;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const res = await fetch(url, options);
-    if (res.ok) return res;
-    if (RETRYABLE.has(res.status)) {
-      lastError = res;
-      const delay = Math.min(1000 * 2 ** attempt, 8000);
-      await new Promise(r => setTimeout(r, delay));
-      if ((res.status === 401 || res.status === 403) && options.headers?.Authorization) {
-        _tokenCache = null;
-        options.headers["Authorization"] = `Bearer ${await getCachedAccessToken()}`;
-      }
-      continue;
-    }
-    let errMsg = `API error (${res.status})`;
-    try { const b = await res.json(); errMsg = b?.error?.message || b?.error || errMsg; } catch (_) {}
-    throw new Error(errMsg);
-  }
-  let errMsg = `API error after ${maxRetries} retries`;
-  try { const b = await lastError.json(); errMsg = b?.error?.message || errMsg; } catch (_) {}
-  throw new Error(errMsg);
+/* ── FEATURE ROW ── */
+.feature-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 20px;
+  transition: background 0.15s;
+  cursor: default;
+}
+.feature-row:hover { background: var(--bg-hover); }
+
+.feature-icon {
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-2);
+  flex-shrink: 0;
 }
 
-// ─────────────────────────────────────────────────────────────
-// PROMPTS
-// ─────────────────────────────────────────────────────────────
-const PROMPTS = {
-  summary:
-    "You are a concise summarizer. Summarize the webpage content into exactly 4 bullet points. " +
-    "Each bullet is one complete, clear sentence. Start each with '•'. Return plain text only, no markdown.",
-
-  keypoints:
-    "Extract the 5 most important facts from this webpage. " +
-    "Return a plain numbered list (1. 2. 3. ...). No markdown. One sentence per point.",
-
-  simplify:
-    "Rewrite the main content of this webpage in simple language a 12-year-old would understand. " +
-    "Use short sentences. Return plain text only, no headers.",
-
-  tone:
-    "Analyze the tone and bias of this webpage content. Return a JSON object with these exact fields: " +
-    '{"tone": "neutral|persuasive|emotional|alarming|promotional", ' +
-    '"bias": "left|center-left|center|center-right|right|unknown", ' +
-    '"confidence": 0-100, ' +
-    '"signals": ["short phrase 1", "short phrase 2", "short phrase 3"]} ' +
-    "Return ONLY the JSON object, no markdown, no explanation."
-};
-
-// ─────────────────────────────────────────────────────────────
-// CALL AI — routes to local (Gemini/Vertex) or published (Anthropic)
-// ─────────────────────────────────────────────────────────────
-async function callAI(systemPrompt, userText) {
-  const mode = await detectAuthMode();
-
-  if (mode === "local") {
-    return callGemini(systemPrompt, userText);
-  } else {
-    return callAnthropic(systemPrompt, userText);
-  }
+.feature-text { flex: 1; }
+.feature-title {
+  font-family: 'Barlow', sans-serif;
+  font-size: 14px; font-weight: 500;
+  color: var(--text-1); line-height: 1.3; margin-bottom: 2px;
+}
+.feature-sub {
+  font-family: 'Barlow', sans-serif;
+  font-size: 11px; color: var(--text-2); font-weight: 300;
 }
 
-async function callGemini(systemPrompt, userText) {
-  const serviceAccount = await loadServiceAccount();
-  const accessToken = await getCachedAccessToken();
-  const projectId = serviceAccount.project_id;
-  const location = "us-central1";
-  const model = "gemini-2.5-pro";
-
-  const body = JSON.stringify({
-    contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userText}` }] }],
-    generationConfig: { maxOutputTokens: 512, temperature: 0.4, topP: 0.9 }
-  });
-
-  const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
-  const res = await fetchWithRetry(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-    body
-  });
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini returned an empty response.");
-  return text.trim();
+/* ── TOGGLE ── */
+.toggle { cursor: pointer; flex-shrink: 0; }
+.toggle input { display: none; }
+.toggle-track {
+  display: block; width: 44px; height: 26px;
+  border-radius: var(--radius-pill);
+  background: var(--toggle-off);
+  border: 1px solid var(--text-3);
+  position: relative; transition: background 0.22s, border-color 0.22s;
+}
+.toggle-thumb {
+  position: absolute; top: 3px; left: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text-3);
+  transition: transform 0.22s cubic-bezier(.4,0,.2,1), background 0.22s;
+}
+.toggle input:checked + .toggle-track {
+  background: var(--toggle-on);
+  border-color: var(--toggle-on);
+}
+.toggle input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(18px);
+  background: var(--bg);
 }
 
-async function callAnthropic(systemPrompt, userText) {
-  const { apiKey } = await chrome.storage.sync.get("apiKey");
-  if (!apiKey) throw new Error("No API key set. Please add your Anthropic API key in Settings.");
+/* ── POMODORO ── */
+.pomodoro-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 20px 14px; flex-wrap: wrap;
+}
+.pomo-display {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 24px; font-weight: 700;
+  letter-spacing: 0.06em; color: var(--text-1);
+  min-width: 74px; transition: color 0.3s;
+}
+.pomo-display.running { color: #7acf95; }
+.pomo-display.done    { color: #cf7a7a; }
 
-  const res = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 512,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userText }]
-    })
-  });
-  const data = await res.json();
-  const text = data?.content?.[0]?.text;
-  if (!text) throw new Error("Anthropic returned an empty response.");
-  return text.trim();
+.pomo-controls { display: flex; gap: 6px; }
+.pomo-btn {
+  all: unset; cursor: pointer;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+  color: var(--text-2); padding: 5px 11px;
+  border: 1px solid var(--border); border-radius: 5px;
+  transition: all 0.15s;
+}
+.pomo-btn:hover { color: var(--text-1); border-color: var(--text-2); background: var(--bg-hover); }
+.pomo-btn.active-run { color: #7acf95; border-color: rgba(122,207,149,0.3); }
+
+.pomo-mode-pills { display: flex; gap: 4px; margin-left: auto; }
+.pomo-pill {
+  all: unset; cursor: pointer;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--text-3); padding: 3px 8px;
+  border: 1px solid var(--border); border-radius: 100px;
+  transition: all 0.15s;
+}
+.pomo-pill:hover { color: var(--text-2); border-color: var(--text-3); }
+.pomo-pill.active { background: var(--bg-card); border-color: var(--text-3); color: var(--text-1); }
+
+/* ── MODE PILLS ── */
+.mode-pills { display: flex; gap: 6px; padding: 4px 20px 12px; }
+.pill {
+  flex: 1; padding: 7px 0;
+  border-radius: var(--radius-pill);
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-2);
+  font-family: 'Barlow', sans-serif;
+  font-size: 11px; font-weight: 500; cursor: pointer;
+  transition: all 0.15s; letter-spacing: 0.02em;
+}
+.pill:hover { border-color: var(--text-3); color: var(--text-1); }
+.pill.active { background: var(--bg-card); border-color: var(--text-3); color: var(--text-1); }
+
+/* ── SUMMARY CARD ── */
+.summary-card {
+  margin: 0 20px 10px;
+  padding: 13px 15px;
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  min-height: 68px;
+}
+.summary-card-tag {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.2em; color: var(--text-3);
+  margin-bottom: 7px; text-transform: uppercase;
+}
+.summary-card-text {
+  font-family: 'Barlow', sans-serif;
+  font-size: 12px; color: var(--text-2);
+  line-height: 1.6; font-weight: 300;
+  transition: color 0.2s;
+}
+.summary-card-text.loaded { color: var(--text-1); }
+
+/* skeleton */
+.skeleton-line {
+  height: 11px; border-radius: 4px;
+  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-hover) 50%, var(--bg-card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite; margin-bottom: 8px;
+}
+.skeleton-line:last-child { width: 55%; margin-bottom: 0; }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* ── GENERATE BUTTON ── */
+.generate-btn {
+  display: flex; align-items: center; justify-content: space-between;
+  width: calc(100% - 40px); margin: 0 20px 8px;
+  padding: 14px 18px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  color: var(--text-1);
+  font-family: 'Barlow', sans-serif;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: all 0.15s;
+}
+.generate-btn:hover { background: var(--bg-hover); border-color: var(--text-3); transform: translateY(-1px); }
+.generate-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.generate-arrow { color: var(--text-2); flex-shrink: 0; }
+
+/* ── REMOVE BUTTON ── */
+.remove-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: calc(100% - 40px); margin: 0 20px 8px;
+  padding: 9px; background: transparent;
+  border: 1px solid var(--border); border-radius: var(--radius-pill);
+  color: var(--text-2);
+  font-family: 'Barlow', sans-serif;
+  font-size: 11px; cursor: pointer; transition: all 0.15s;
+}
+.remove-btn:hover { color: var(--text-1); border-color: var(--text-3); }
+.remove-btn.hidden { display: none; }
+
+/* ── SHORTCUTS ROW ── */
+.shortcuts-row {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 4px; padding: 10px 20px;
+}
+.shortcut-item { display: flex; align-items: center; gap: 7px; }
+.shortcut-key {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--text-3); background: var(--bg-card-2);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 2px 5px; white-space: nowrap;
+}
+.shortcut-desc { font-size: 11px; color: var(--text-2); font-weight: 300; }
+
+/* ── QUICK ROW ── */
+.quick-row { display: flex; gap: 6px; padding: 12px 20px 6px; }
+.quick-btn {
+  flex: 1; padding: 9px 4px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-card-2); border: 1px solid var(--border);
+  color: var(--text-2);
+  font-family: 'Barlow', sans-serif;
+  font-size: 11px; font-weight: 400; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  gap: 5px; transition: all 0.15s;
+}
+.quick-btn:hover { background: var(--bg-hover); color: var(--text-1); border-color: var(--text-3); }
+
+/* ── SETTINGS PAGE ── */
+.settings-page { padding: 0 0 16px; animation: fadeUp 0.2s ease both; }
+.settings-page.hidden { display: none; }
+.popup.hidden { display: none; }
+
+.settings-header {
+  display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+}
+.back-btn {
+  all: unset; cursor: pointer;
+  font-size: 18px; color: var(--text-2); transition: color 0.15s;
+}
+.back-btn:hover { color: var(--text-1); }
+.settings-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.18em;
+  color: var(--text-2); text-transform: uppercase;
 }
 
-// ─────────────────────────────────────────────────────────────
-// MAIN GENERATE FUNCTION
-// ─────────────────────────────────────────────────────────────
-async function generateSummary(pageText, mode = "summary") {
-  const systemPrompt = PROMPTS[mode] || PROMPTS.summary;
-  const userText = pageText.slice(0, 6000);
-  return callAI(systemPrompt, userText);
+.settings-field { padding: 6px 20px; }
+.settings-label {
+  display: block;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.16em;
+  color: var(--text-2); margin-bottom: 6px;
+}
+.settings-hint { font-weight: 400; letter-spacing: 0.04em; color: var(--text-3); }
+.settings-input {
+  width: 100%; padding: 9px 12px;
+  background: var(--bg-card-2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-1);
+  font-family: 'Barlow', sans-serif; font-size: 11px; font-weight: 300;
+  outline: none; transition: border-color 0.15s;
+}
+.settings-input:focus { border-color: var(--text-3); }
+.settings-input::placeholder { color: var(--text-3); }
+
+.shortcuts-list { padding: 0 20px 8px; }
+.shortcut-row-full {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; font-size: 11px; color: var(--text-2); font-weight: 300;
+  border-bottom: 1px solid var(--border);
+}
+.shortcut-row-full:last-child { border-bottom: none; }
+.shortcut-row-full .shortcut-key {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 10px; color: var(--text-2);
+  background: var(--bg-card-2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 6px;
 }
 
-// ─────────────────────────────────────────────────────────────
-// TONE & BIAS ANALYSIS
-// ─────────────────────────────────────────────────────────────
-async function analyzeTone(pageText) {
-  const result = await callAI(PROMPTS.tone, pageText.slice(0, 4000));
-  try {
-    const clean = result.replace(/```json|```/g, "").trim();
-    return JSON.parse(clean);
-  } catch (_) {
-    return { tone: "unknown", bias: "unknown", confidence: 0, signals: [] };
-  }
+.settings-status {
+  text-align: center; font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.18em;
+  color: #7acf95; padding: 8px 20px;
 }
+.settings-status.hidden { display: none; }
 
-// ─────────────────────────────────────────────────────────────
-// SOURCE CREDIBILITY SCORE
-// Uses a built-in heuristic database + domain age signals
-// ─────────────────────────────────────────────────────────────
-const CREDIBILITY_DB = {
-  // Tier 1 — high credibility
-  "reuters.com": 95, "apnews.com": 95, "bbc.com": 93, "bbc.co.uk": 93,
-  "theguardian.com": 88, "nytimes.com": 87, "washingtonpost.com": 86,
-  "economist.com": 90, "ft.com": 90, "nature.com": 96, "science.org": 96,
-  "who.int": 95, "cdc.gov": 94, "nih.gov": 95, "gov.uk": 90,
-  "wikipedia.org": 75, "britannica.com": 88,
-  // Tier 2 — moderate
-  "cnn.com": 72, "nbcnews.com": 74, "cbsnews.com": 76, "abcnews.go.com": 75,
-  "politico.com": 78, "theatlantic.com": 80, "vox.com": 72, "axios.com": 80,
-  "bloomberg.com": 85, "wsj.com": 85, "forbes.com": 70, "businessinsider.com": 65,
-  // Tier 3 — lower trust
-  "buzzfeed.com": 52, "dailymail.co.uk": 45, "nypost.com": 50,
-  "breitbart.com": 30, "infowars.com": 10, "theonion.com": 5,
-};
-
-async function getCredibilityScore(domain) {
-  const clean = domain.replace(/^www\./, "").toLowerCase();
-
-  if (CREDIBILITY_DB[clean] !== undefined) {
-    return {
-      score: CREDIBILITY_DB[clean],
-      domain: clean,
-      tier: scoreToTier(CREDIBILITY_DB[clean]),
-      source: "database"
-    };
-  }
-
-  // Unknown domain — return neutral with note
-  return {
-    score: 50,
-    domain: clean,
-    tier: "unknown",
-    source: "estimated"
-  };
-}
-
-function scoreToTier(score) {
-  if (score >= 85) return "high";
-  if (score >= 65) return "moderate";
-  if (score >= 40) return "low";
-  return "very-low";
-}
-
-// ─────────────────────────────────────────────────────────────
-// EXPORT TO NOTION
-// ─────────────────────────────────────────────────────────────
-async function exportToNotion(title, summary, pageUrl) {
-  const { notionKey, notionDbId } = await chrome.storage.sync.get(["notionKey", "notionDbId"]);
-  if (!notionKey) throw new Error("No Notion API key configured in Settings.");
-  if (!notionDbId) throw new Error("No Notion database ID configured in Settings.");
-
-  const body = {
-    parent: { database_id: notionDbId },
-    properties: {
-      Name: { title: [{ text: { content: title || "ClearLit Summary" } }] },
-      URL: { url: pageUrl },
-      Date: { date: { start: new Date().toISOString().split("T")[0] } }
-    },
-    children: [
-      {
-        object: "block",
-        type: "paragraph",
-        paragraph: {
-          rich_text: [{ type: "text", text: { content: summary } }]
-        }
-      }
-    ]
-  };
-
-  const res = await fetch("https://api.notion.com/v1/pages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${notionKey}`,
-      "Notion-Version": "2022-06-28"
-    },
-    body: JSON.stringify(body)
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.message || `Notion API error (${res.status})`);
-  }
-
-  return await res.json();
+/* bottom handle */
+.popup::after {
+  content: ''; display: block;
+  width: 36px; height: 3px; border-radius: 2px;
+  background: var(--border); margin: 12px auto 0;
 }
