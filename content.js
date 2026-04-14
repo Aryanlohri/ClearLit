@@ -20,6 +20,11 @@
   let focusBarEl = null;
   let credBadgeEl = null;
   let shortcutsEnabled = true;
+  let cinematicActive = false;
+  let cinematicOverlay = null;
+  let bionicActive = false;
+  let bionicOriginals = new Map();
+  let fontPanelEl = null;
 
   // ─── SHADOW DOM HOST ─────────────────────────────────────────
   function getOrCreateHost() {
@@ -744,6 +749,169 @@
     }
   }
 
+  // ─── CINEMATIC MODE ──────────────────────────────────────────
+  function enableCinematic() {
+    if (cinematicActive) return;
+    cinematicActive = true;
+
+    cinematicOverlay = document.createElement("div");
+    cinematicOverlay.id = "clearlit-cinematic-overlay";
+    cinematicOverlay.style.cssText = [
+      "position:fixed", "top:0", "left:0", "width:100%", "height:100%",
+      "z-index:2147483638", "pointer-events:none",
+      "background:rgba(0,0,0,0)",
+      "transition:background 0.4s ease"
+    ].join(";");
+    document.body.appendChild(cinematicOverlay);
+
+    // Create window with transparent center strip
+    requestAnimationFrame(() => {
+      cinematicOverlay.style.background = "transparent";
+      cinematicOverlay.innerHTML = `
+        <div style="position:fixed;top:0;left:0;width:15%;height:100%;background:rgba(0,0,0,0.75);pointer-events:none;transition:opacity 0.4s"></div>
+        <div style="position:fixed;top:0;right:0;width:15%;height:100%;background:rgba(0,0,0,0.75);pointer-events:none;transition:opacity 0.4s"></div>
+        <div style="position:fixed;top:0;left:15%;right:15%;height:100%;border-left:1px solid rgba(255,255,255,0.06);border-right:1px solid rgba(255,255,255,0.06);pointer-events:none"></div>
+      `;
+    });
+  }
+
+  function disableCinematic() {
+    cinematicActive = false;
+    if (cinematicOverlay) {
+      cinematicOverlay.remove();
+      cinematicOverlay = null;
+    }
+  }
+
+  // ─── BIONIC READING ─────────────────────────────────────────
+  function enableBionic() {
+    if (bionicActive) return;
+    bionicActive = true;
+
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          const parent = node.parentElement;
+          if (!parent) return NodeFilter.FILTER_REJECT;
+          const tag = parent.tagName;
+          if (["SCRIPT","STYLE","NOSCRIPT","TEXTAREA","INPUT","CODE","PRE"].includes(tag)) return NodeFilter.FILTER_REJECT;
+          if (parent.closest("#" + PANEL_ID)) return NodeFilter.FILTER_REJECT;
+          if (node.textContent.trim().length === 0) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    textNodes.forEach(node => {
+      const text = node.textContent;
+      const words = text.split(/(\s+)/);
+      const span = document.createElement("span");
+      span.className = "clearlit-bionic-wrap";
+
+      words.forEach(word => {
+        if (/^\s+$/.test(word)) {
+          span.appendChild(document.createTextNode(word));
+          return;
+        }
+        const boldLen = Math.max(1, Math.ceil(word.length / 2));
+        const b = document.createElement("b");
+        b.style.fontWeight = "700";
+        b.textContent = word.slice(0, boldLen);
+        const rest = document.createTextNode(word.slice(boldLen));
+        span.appendChild(b);
+        span.appendChild(rest);
+      });
+
+      bionicOriginals.set(span, { parent: node.parentNode, original: node, next: node.nextSibling });
+      node.parentNode.replaceChild(span, node);
+    });
+  }
+
+  function disableBionic() {
+    bionicActive = false;
+    bionicOriginals.forEach((info, span) => {
+      if (span.parentNode) {
+        span.parentNode.replaceChild(info.original, span);
+      }
+    });
+    bionicOriginals.clear();
+  }
+
+  // ─── FLOATING FONT PANEL (from popup button) ────────────────
+  function toggleFloatingFontPanel() {
+    if (fontPanelEl) {
+      fontPanelEl.remove();
+      fontPanelEl = null;
+      return;
+    }
+
+    fontPanelEl = document.createElement("div");
+    fontPanelEl.id = "clearlit-font-panel";
+    fontPanelEl.style.cssText = [
+      "position:fixed", "bottom:20px", "left:50%", "transform:translateX(-50%)",
+      "z-index:2147483646", "background:#2b2e2f",
+      "border:1px solid rgba(255,255,255,0.1)", "border-radius:12px",
+      "padding:14px 18px", "display:flex", "gap:16px", "align-items:center",
+      "box-shadow:0 8px 32px rgba(0,0,0,0.6)",
+      "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+      "font-size:12px", "color:#edecea"
+    ].join(";");
+
+    fontPanelEl.innerHTML = `
+      <label style="display:flex;align-items:center;gap:6px;color:#7c8585;font-size:11px;white-space:nowrap">
+        Size
+        <input type="range" min="12" max="28" value="16" step="1" id="cl-fp-size" style="width:70px;cursor:pointer">
+        <span id="cl-fp-size-val" style="min-width:28px;color:#edecea;font-size:10px">16px</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;color:#7c8585;font-size:11px;white-space:nowrap">
+        Spacing
+        <input type="range" min="1.2" max="2.6" value="1.6" step="0.1" id="cl-fp-lh" style="width:60px;cursor:pointer">
+        <span id="cl-fp-lh-val" style="min-width:24px;color:#edecea;font-size:10px">1.6</span>
+      </label>
+      <button id="cl-fp-close" style="all:unset;cursor:pointer;font-size:14px;color:#7c8585;padding:2px 6px">✕</button>
+    `;
+
+    document.body.appendChild(fontPanelEl);
+
+    // Ensure the page-font style tag exists
+    let pageStyle = document.getElementById("clearlit-page-font");
+    if (!pageStyle) {
+      pageStyle = document.createElement("style");
+      pageStyle.id = "clearlit-page-font";
+      document.head.appendChild(pageStyle);
+    }
+
+    const sizeInput = fontPanelEl.querySelector("#cl-fp-size");
+    const lhInput = fontPanelEl.querySelector("#cl-fp-lh");
+    const sizeVal = fontPanelEl.querySelector("#cl-fp-size-val");
+    const lhVal = fontPanelEl.querySelector("#cl-fp-lh-val");
+    const closeBtn = fontPanelEl.querySelector("#cl-fp-close");
+
+    function applyStyles() {
+      const sz = sizeInput.value;
+      const lh = lhInput.value;
+      sizeVal.textContent = sz + "px";
+      lhVal.textContent = parseFloat(lh).toFixed(1);
+      pageStyle.textContent = `
+        article, main, .article, .post, .content, p, h1, h2, h3, h4, li, td, th, span, div {
+          font-size: ${sz}px !important;
+          line-height: ${lh} !important;
+        }`;
+    }
+
+    sizeInput.addEventListener("input", applyStyles);
+    lhInput.addEventListener("input", applyStyles);
+    closeBtn.addEventListener("click", () => {
+      fontPanelEl.remove();
+      fontPanelEl = null;
+    });
+  }
+
   // ─── CREDIBILITY BADGE ───────────────────────────────────────
   function injectCredibilityBadge(scoreData) {
     if (credBadgeEl) credBadgeEl.remove();
@@ -889,6 +1057,38 @@
     if (request.action === "toggleFocusHighlight") {
       focusActive ? disableFocusHighlight() : enableFocusHighlight();
       sendResponse({ active: focusActive });
+    }
+
+    if (request.action === "toggleCinematic") {
+      if (request.enabled) enableCinematic();
+      else disableCinematic();
+      sendResponse({ active: cinematicActive });
+    }
+
+    if (request.action === "toggleBionic") {
+      if (request.enabled) enableBionic();
+      else disableBionic();
+      sendResponse({ active: bionicActive });
+    }
+
+    if (request.action === "toggleTTS") {
+      if (ttsActive) {
+        stopTTS();
+      } else {
+        const pageText = extractText();
+        if (pageText && pageText.length > 50) speak(pageText);
+      }
+      sendResponse({ active: ttsActive });
+    }
+
+    if (request.action === "stopTTS") {
+      stopTTS();
+      sendResponse({ active: false });
+    }
+
+    if (request.action === "toggleFontPanel") {
+      toggleFloatingFontPanel();
+      sendResponse({ active: !!fontPanelEl });
     }
 
     if (request.action === "getPageInfo") {

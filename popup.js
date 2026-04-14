@@ -74,10 +74,11 @@ function setupToggles() {
   });
   $("toggle-tts").addEventListener("change", e => {
     if (e.target.checked) send("toggleTTS");
+    else send("stopTTS");
   });
 }
 
-// ─── POMODORO ────────────────────────────────────────────────
+// ─── POMODORO (alarm-based persistence) ──────────────────────
 let pomoTimer = null, pomoSecs = 25 * 60, pomoRunning = false;
 let pomoBreak = false, pomoMins = 25;
 
@@ -85,7 +86,40 @@ function fmt(s) {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function setupPomodoro() {
+async function setupPomodoro() {
+  // Restore state from storage (survives popup close)
+  const stored = await chrome.storage.local.get("pomoState");
+  if (stored.pomoState) {
+    const st = stored.pomoState;
+    pomoMins = st.pomoMins || 25;
+    pomoBreak = st.pomoBreak || false;
+
+    // Highlight the correct pill
+    document.querySelectorAll(".pomo-pill").forEach(p => {
+      p.classList.toggle("active", parseInt(p.dataset.mins) === pomoMins);
+    });
+
+    if (st.running && st.endTime) {
+      const remaining = Math.max(0, Math.round((st.endTime - Date.now()) / 1000));
+      if (remaining > 0) {
+        pomoSecs = remaining;
+        $("pomo-display").textContent = fmt(pomoSecs);
+        startPomo(true); // resume without resetting endTime
+      } else {
+        // Timer already expired while popup was closed
+        pomoSecs = pomoMins * 60;
+        $("pomo-display").textContent = fmt(pomoSecs);
+      }
+    } else if (st.pausedSecs) {
+      pomoSecs = st.pausedSecs;
+      $("pomo-display").textContent = fmt(pomoSecs);
+      $("pomo-start").textContent = "Resume";
+    } else {
+      pomoSecs = pomoMins * 60;
+      $("pomo-display").textContent = fmt(pomoSecs);
+    }
+  }
+
   document.querySelectorAll(".pomo-pill").forEach(p => {
     p.addEventListener("click", () => {
       document.querySelectorAll(".pomo-pill").forEach(x => x.classList.remove("active"));
@@ -98,11 +132,30 @@ function setupPomodoro() {
   $("pomo-reset").addEventListener("click", resetPomo);
 }
 
-function startPomo() {
+function savePomodoroState() {
+  chrome.storage.local.set({
+    pomoState: {
+      running: pomoRunning,
+      endTime: pomoRunning ? Date.now() + pomoSecs * 1000 : null,
+      pausedSecs: !pomoRunning ? pomoSecs : null,
+      pomoMins,
+      pomoBreak
+    }
+  });
+}
+
+function startPomo(resuming = false) {
   pomoRunning = true;
   $("pomo-start").textContent = "Pause";
   $("pomo-start").classList.add("active-run");
   $("pomo-display").className = "pomo-display running";
+
+  if (!resuming) {
+    // Set an alarm in background so it fires even if popup closes
+    chrome.alarms.create("clearlit-pomo", { delayInMinutes: pomoSecs / 60 });
+  }
+  savePomodoroState();
+
   pomoTimer = setInterval(() => {
     pomoSecs--;
     $("pomo-display").textContent = fmt(pomoSecs);
@@ -116,24 +169,29 @@ function startPomo() {
       pomoSecs = pomoBreak ? 5 * 60 : pomoMins * 60;
       $("pomo-display").textContent = fmt(pomoSecs);
       $("pomo-display").className = "pomo-display";
+      savePomodoroState();
     }
   }, 1000);
 }
 
 function pausePomo() {
   clearInterval(pomoTimer); pomoRunning = false;
+  chrome.alarms.clear("clearlit-pomo");
   $("pomo-start").textContent = "Resume";
   $("pomo-start").classList.remove("active-run");
   $("pomo-display").className = "pomo-display";
+  savePomodoroState();
 }
 
 function resetPomo() {
   clearInterval(pomoTimer); pomoRunning = false; pomoBreak = false;
+  chrome.alarms.clear("clearlit-pomo");
   pomoSecs = pomoMins * 60;
   $("pomo-display").textContent = fmt(pomoSecs);
   $("pomo-display").className = "pomo-display";
   $("pomo-start").textContent = "Start";
   $("pomo-start").classList.remove("active-run");
+  savePomodoroState();
 }
 
 // ─── GENERATE ────────────────────────────────────────────────

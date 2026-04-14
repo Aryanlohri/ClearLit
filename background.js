@@ -155,7 +155,7 @@ async function getCachedAccessToken() {
 // FETCH WITH RETRY
 // ─────────────────────────────────────────────────────────────
 async function fetchWithRetry(url, options, maxRetries = 3) {
-  const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+  const RETRYABLE = new Set([401, 403, 429, 500, 502, 503, 504]);
   let lastError;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const res = await fetch(url, options);
@@ -378,3 +378,34 @@ async function exportToNotion(title, summary, pageUrl) {
 
   return await res.json();
 }
+
+// ─────────────────────────────────────────────────────────────
+// POMODORO ALARM HANDLER (fires even if popup is closed)
+// ─────────────────────────────────────────────────────────────
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === "clearlit-pomo") {
+    const { pomoState } = await chrome.storage.local.get("pomoState");
+    const isBreak = pomoState?.pomoBreak || false;
+
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: "icons/icon48.png",
+      title: "ClearLit · Pomodoro",
+      message: isBreak ? "Break's over! Time to focus." : "Focus session complete! Take a break.",
+      priority: 2
+    });
+
+    // Update stored state so popup reflects completion
+    const newBreak = !isBreak;
+    const mins = pomoState?.pomoMins || 25;
+    await chrome.storage.local.set({
+      pomoState: {
+        running: false,
+        endTime: null,
+        pausedSecs: null,
+        pomoMins: mins,
+        pomoBreak: newBreak
+      }
+    });
+  }
+});
